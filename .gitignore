@@ -1,0 +1,7 @@
+node_modules/ 
+uploads/ 
+ml/model/ 
+keys/ 
+.env 
+*.zip 
+*.h5 
