@@ -1,19 +1,30 @@
-const { Storage } = require('@google-cloud/storage');
-require('dotenv').config();
+// src/utils/uploadFile.js - GITHUB + LOCAL STORAGE
+const fs = require('fs');
+const path = require('path');
+const { v4: uuidv4 } = require('uuid');
 
-const storage = new Storage({
-  keyFilename: process.env.GCS_KEYFILE_PATH,
-  projectId: process.env.GCS_PROJECT_ID,
-});
+const uploadFile = async (localPath, originalName) => {
+  const ext = path.extname(originalName);
+  const filename = `${uuidv4()}${ext}`;
+  const destDir = path.join(__dirname, '..', 'uploads', 'raw-imagery');
+  const destPath = path.join(destDir, filename);
 
-const bucket = storage.bucket(process.env.GCS_BUCKET);
+  // Ensure directory exists
+  if (!fs.existsSync(destDir)) {
+    fs.mkdirSync(destDir, { recursive: true });
+  }
 
-const uploadFile = async (localPath, destName) => {
-  const dest = `raw-imagery/${destName}`;
-  await bucket.upload(localPath, { destination: dest });
-  const file = bucket.file(dest);
-  await file.makePublic();
-  return `https://storage.googleapis.com/${process.env.GCS_BUCKET}/${dest}`;
+  // Copy file
+  fs.copyFileSync(localPath, destPath);
+
+  // Return file:// URL for local testing
+  const fileUrl = `file://${path.resolve(destPath).replace(/\\/g, '/')}`;
+
+  // FOR RENDER: Return GitHub raw URL (uncomment when deployed)
+  // const githubUrl = `https://github.com/Constyk20/urban-growth-api-clean/raw/main/uploads/raw-imagery/${filename}`;
+  // return githubUrl;
+
+  return fileUrl; // ← Use this for local testing
 };
 
 module.exports = { uploadFile };

@@ -12,18 +12,18 @@ import requests
 import shutil
 
 # === CONFIG ===
-MODEL_URL = "https://github.com/Constyk20/urban-growth-api-clean/raw/main/ml/model/unet_model.h5"
-MODEL_PATH = "ml/model/unet_model.h5"
+MODEL_GITHUB_URL = "https://github.com/Constyk20/urban-growth-api-clean/raw/main/ml/model/unet_model.h5"
+MODEL_LOCAL_PATH = "ml/model/unet_model.h5"
 
-# Auto-download model
-if not os.path.exists(MODEL_PATH):
-    os.makedirs(os.path.dirname(MODEL_PATH), exist_ok=True)
+# Auto-download model if missing
+if not os.path.exists(MODEL_LOCAL_PATH):
+    os.makedirs(os.path.dirname(MODEL_LOCAL_PATH), exist_ok=True)
     print("Downloading U-Net model from GitHub...")
     try:
-        r = requests.get(MODEL_URL, stream=True, timeout=30)
-        r.raise_for_status()
-        with open(MODEL_PATH, "wb") as f:
-            for chunk in r.iter_content(8192):
+        response = requests.get(MODEL_GITHUB_URL, stream=True, timeout=30)
+        response.raise_for_status()
+        with open(MODEL_LOCAL_PATH, "wb") as f:
+            for chunk in response.iter_content(8192):
                 f.write(chunk)
         print("Model downloaded successfully.")
     except Exception as e:
@@ -32,31 +32,31 @@ if not os.path.exists(MODEL_PATH):
 
 # Load model
 try:
-    model = tf.keras.models.load_model(MODEL_PATH)
+    model = tf.keras.models.load_model(MODEL_LOCAL_PATH)
     print("U-Net model loaded.")
 except Exception as e:
     print(json.dumps({"error": f"Failed to load model: {e}"}))
     sys.exit(1)
 
 
-def download_zip(url, local_path):
-    """Download from file:// or HTTP"""
+def download_file(url, local_path):
+    """Download from file://, http://, or https:// (GitHub raw)"""
     if url.startswith("file://"):
         src = url[len("file://"):]
         if not os.path.exists(src):
             raise FileNotFoundError(f"Local file not found: {src}")
         shutil.copy(src, local_path)
     else:
-        r = requests.get(url, stream=True, timeout=60)
-        r.raise_for_status()
+        response = requests.get(url, stream=True, timeout=60)
+        response.raise_for_status()
         with open(local_path, "wb") as f:
-            for chunk in r.iter_content(8192):
+            for chunk in response.iter_content(8192):
                 f.write(chunk)
     print(f"Downloaded: {url} → {local_path}")
 
 
 def extract_band(zip_path, band_name, out_dir):
-    """Extract .tif file containing band_name from ANY subfolder"""
+    """Extract .tif containing band_name from ANY subfolder"""
     with zipfile.ZipFile(zip_path, 'r') as z:
         for name in z.namelist():
             if band_name in name and name.lower().endswith('.tif'):
@@ -118,7 +118,7 @@ def main():
     with tempfile.TemporaryDirectory() as tmpdir:
         zip_path = os.path.join(tmpdir, "scene.zip")
         try:
-            download_zip(zip_url, zip_path)
+            download_file(zip_url, zip_path)
         except Exception as e:
             print(json.dumps({"error": f"Download failed: {e}"}))
             return
@@ -186,8 +186,11 @@ def main():
         pixel_area_m2 = 10 * 10
         built_up_ha = built_up_pixels * pixel_area_m2 / 10000.0
 
+        # Return file:// URL (local) or GitHub raw (Render)
+        result_url = f"file://{os.path.abspath(final_path).replace(chr(92), '/')}"
+
         print(json.dumps({
-            "resultUrl": f"file://{os.path.abspath(final_path).replace(chr(92), '/')}",
+            "resultUrl": result_url,
             "builtUpAreaHa": round(built_up_ha, 2),
             "growthPercent": 0.0,
             "iou": 0.0,
